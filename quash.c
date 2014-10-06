@@ -1,10 +1,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
+#include <sys/types.h>
 #include <signal.h>
+#include <sys/wait.h>
+#include <fcntl.h>
+#include <termios.h>
 
 #define BMAX 100
 #define TRUE 1
+#define FALSE 0
 static char cmd_buffer[BMAX];
 static char* myargv[5];
 static int myargc = 0;
@@ -140,11 +146,26 @@ void handle_command()
 	}
 }
 
-int main(int argc, char *argv[], char *envp[])
+void initialize()
 {
-	signal(SIGINT, SIG_IGN);
-	signal(SIGINT, signal_handler);
-	shell_display();
+        
+        
+                signal(SIGQUIT, SIG_IGN);
+                signal(SIGTTOU, SIG_IGN);
+                signal(SIGTTIN, SIG_IGN);
+                signal(SIGTSTP, SIG_IGN);
+                signal(SIGINT, SIG_IGN);
+                shell_display();
+                fflush(stdout);
+                
+}
+
+
+
+int main(int argc, char *argv[], char *envp[])
+{	
+	
+	initialize();
 	while(TRUE) {
 		input = getchar();
 		switch(input) {
