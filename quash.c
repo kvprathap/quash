@@ -108,14 +108,18 @@ int parse_for_shell_commands()
 {
 	mode mode;
 	redirection redirection;
-	if (strcmp("exit", myargv[0]) == 0) {
+	if (strcmp("exit", myargv[0]) == 0) { // Implementing exit command
                 exit(EXIT_SUCCESS);
         }
-        if (strcmp("cd", myargv[0]) == 0) {
+        if (strcmp("cd", myargv[0]) == 0) {   //Implementing cd command
 
                 change_directory();
                 return 1;
         }
+	if (strcmp("quit", myargv[0]) == 0) { // Implementing quit command
+                exit(EXIT_SUCCESS);
+        }
+
 	mode  = check_for_symbol("&");
 	printf("mode = %d\n",mode);
 	redirection = check_for_symbol('\0');
