@@ -11,6 +11,7 @@
 #define BMAX 100
 #define TRUE 1
 #define FALSE 0
+#define MAXJOB 20
 static char cmd_buffer[BMAX];
 static char* myargv[5];
 static int myargc = 0;
@@ -19,6 +20,40 @@ static int buff_chars = 0;
 static int pos;
 static char* cwd;
 typedef void (*sighandler_t)(int);
+
+
+/* Structure to store a particular job */
+struct job{
+pid_t pid;
+int jid;
+int state;
+char *input;
+};
+
+/* Structure contains list of jobs */
+struct job list_of_jobs[MAXJOB]; 
+
+
+
+/* function for clearing all jobs in the list */
+void clear_jobs(struct job *job){
+	job->pid=0;
+	job->jid=0;
+	job->state=0;
+	job->input='\0';
+}
+
+/* function for initialisation of job list */
+void joblist_initialization(struct job *list_of_jobs){
+	int temp;
+        while(temp < MAXJOB){
+		clear_jobs(&list_of_jobs[temp]);
+	}
+}
+
+
+
+
 
 
 typedef enum execution_mode
@@ -43,6 +78,27 @@ void signal_handler(int signo)
 	shell_display();
 	fflush(stdout);
 }
+
+
+
+/* Find a job from a given job ID or name */
+struct job *get_job(struct job *list_of_jobs,pid_t pid){
+	int temp;
+	for(temp=0;temp<MAXJOB;temp++){
+		if(list_of_jobs[temp].pid== pid){
+			return &list_of_jobs[temp];
+		}
+	}
+	return &list_of_jobs[temp];
+}
+
+
+void killing_job(struct job *list_of_jobs, int pid)
+{
+        struct job *jobname = get_job(list_of_jobs,pid);
+        kill(jobname->pid, SIGKILL);
+}
+
 
 void init_command()
 {
@@ -103,6 +159,22 @@ void change_directory()
         }
 }
 
+void display_jobs(struct job *list_of_jobs){
+
+
+	printf("\nActive jobs in under quash \n");
+        printf("jid      pid      status    \n");
+        
+        int temp = 0;
+	for (temp=0;temp<MAXJOB;temp++){
+        	if (list_of_jobs[temp].pid != 0) {
+                printf("%d \t %d \t %d \n",list_of_jobs[temp].jid,list_of_jobs[temp].pid,list_of_jobs[temp].state);
+        	} 
+	}
+        
+}
+
+
 /* implement exit,cd,jobs,kill*/
 int parse_for_shell_commands()
 {
@@ -119,13 +191,38 @@ int parse_for_shell_commands()
 	if (strcmp("quit", myargv[0]) == 0) { // Implementing quit command
                 exit(EXIT_SUCCESS);
         }
+	
+	if (strcmp("jobs", myargv[0]) == 0) { // Printing all jobs
+                display_jobs(list_of_jobs);
+		return 1;
+        }
+	
+	if (strcmp("kill", myargv[0]) == 0) { // Killing a job
+                
+		int jobid = atoi(myargv[1]);
+                killing_job(list_of_jobs , jobid);
+                return 1;
+        }
+
 
 	mode  = check_for_symbol("&");
 	printf("mode = %d\n",mode);
+
+	if (mode == BG){                      //For background mode
+	printf("Background process should be started here.");
 	redirection = check_for_symbol('\0');
 	printf("redirection = %d\n",redirection);
+	
 	/*pos + 1 has the filename*/
+	}
 
+	else{                               //For foreground mode
+        printf("General case - foreground mode.");
+	redirection = check_for_symbol('\0');
+        printf("redirection = %d\n",redirection);
+        /*pos + 1 has the filename*/
+
+	}
 
 	return 0;
 }
@@ -134,6 +231,7 @@ void execute_command (char *command[])
 {
 	if (execvp(*command, command) == -1)
                 perror("quash");
+	
 }
 
 void start_job()
@@ -149,6 +247,8 @@ void handle_command()
 	//	execute_command(myargv);
 	}
 }
+
+
 
 void initialize()
 {
