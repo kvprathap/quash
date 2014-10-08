@@ -228,7 +228,7 @@ void execute_command (char *command[],mode mode)
 void start_job()
 {
 	char* filename = NULL;
-	pid_t pid1;
+	pid_t pid1,pid2;
 	mode mode = 0;
 	redirection redirection = 0;
 
@@ -252,6 +252,18 @@ void start_job()
 			if (mode ==  BG)
 				printf("[1] %d\n",pid1);
 			waitpid(pid1,&status, 0);
+		}
+	}
+	else {
+		pid2 = fork();
+		if (pid2 == 0) {
+			execute_command(myargv,mode);
+			exit(0);
+		}
+		else {
+			if (mode ==  BG)
+				printf("[1] %d\n",pid2);
+			waitpid(pid2,&status, 0);
 		}
 	}
 }
