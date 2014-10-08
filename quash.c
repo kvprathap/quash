@@ -228,43 +228,35 @@ void execute_command (char *command[],mode mode)
 void start_job()
 {
 	char* filename = NULL;
-	pid_t pid1,pid2;
+	pid_t pid;
 	mode mode = 0;
 	redirection redirection = 0;
 
 	mode  = check_for_symbol("&");
-	printf("mode = %d\n",mode);
 	redirection = check_for_symbol('\0');
-	if (redirection == WRITE)
-	{
-		filename = myargv[pos + 1];
-		myargv[pos] = '\0';
-		printf("%s\n",filename); 
-		pid1 = fork();
-		if (pid1 ==0) {
+	pid = fork();
+	if (pid == 0) {
+		if (redirection == WRITE)
+		{
+			filename = myargv[pos + 1];
+			myargv[pos] = '\0';
+			printf("%s\n",filename); 
 			fdout = open(filename, O_CREAT | O_WRONLY | O_TRUNC, 0666);
 			dup2(fdout, STDOUT_FILENO);
           		execute_command(myargv,mode);
           		close(fdout);
           		exit(0);
         	}
+			
 		else {
-			if (mode ==  BG)
-				printf("[1] %d\n",pid1);
-			waitpid(pid1,&status, 0);
-		}
-	}
-	else {
-		pid2 = fork();
-		if (pid2 == 0) {
 			execute_command(myargv,mode);
 			exit(0);
 		}
-		else {
-			if (mode ==  BG)
-				printf("[1] %d\n",pid2);
-			waitpid(pid2,&status, 0);
-		}
+	}
+	else {
+		if (mode ==  BG)
+			printf("[1] %d\n",pid);
+		waitpid(pid,&status, 0);
 	}
 }
 
