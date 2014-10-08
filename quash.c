@@ -20,7 +20,8 @@ static int buff_chars = 0;
 static int pos;
 static char* cwd;
 typedef void (*sighandler_t)(int);
-
+int status;
+int fdout,fdin;	
 
 /* Structure to store a particular job */
 struct job{
@@ -64,7 +65,8 @@ typedef enum execution_mode
 
 typedef enum redirection
 {
-	READ=0,
+	EMPTY=0,
+	READ,
 	WRITE
 }redirection;
 
@@ -178,8 +180,6 @@ void display_jobs(struct job *list_of_jobs){
 /* implement exit,cd,jobs,kill*/
 int parse_for_shell_commands()
 {
-	mode mode;
-	redirection redirection;
 	if (strcmp("exit", myargv[0]) == 0) { // Implementing exit command
                 exit(EXIT_SUCCESS);
         }
@@ -203,48 +203,63 @@ int parse_for_shell_commands()
                 killing_job(list_of_jobs , jobid);
                 return 1;
         }
+    	return 0;
 
 
-	mode  = check_for_symbol("&");
-	printf("mode = %d\n",mode);
-
-	if (mode == BG){                      //For background mode
-	printf("Background process should be started here.");
-	redirection = check_for_symbol('\0');
-	printf("redirection = %d\n",redirection);
 	
-	/*pos + 1 has the filename*/
-	}
-
-	else{                               //For foreground mode
-        printf("General case - foreground mode.");
-	redirection = check_for_symbol('\0');
-        printf("redirection = %d\n",redirection);
-        /*pos + 1 has the filename*/
-
-	}
-
-	return 0;
 }
 
-void execute_command (char *command[])
+void execute_command (char *command[],mode mode)
 {
-	if (execvp(*command, command) == -1)
-                perror("quash");
-	
+	int pid1;
+	pid1 = fork();
+	if (pid1 == 0) {
+		close(fdin);
+		close(fdout);
+		if (execvp(*command, command) == -1)
+                	perror("quash");
+		exit(0);	
+	}
+	else {
+		waitpid(pid1, &status,0);
+	}
 }
 
 void start_job()
 {
+	char* filename = NULL;
+	pid_t pid1;
+	mode mode = 0;
+	redirection redirection = 0;
 
-
+	mode  = check_for_symbol("&");
+	printf("mode = %d\n",mode);
+	redirection = check_for_symbol('\0');
+	if (redirection == WRITE)
+	{
+		filename = myargv[pos + 1];
+		myargv[pos] = '\0';
+		printf("%s\n",filename); 
+		pid1 = fork();
+		if (pid1 ==0) {
+			fdout = open(filename, O_CREAT | O_WRONLY | O_TRUNC, 0666);
+			dup2(fdout, STDOUT_FILENO);
+          		execute_command(myargv,mode);
+          		close(fdout);
+          		exit(0);
+        	}
+		else {
+			if (mode ==  BG)
+				printf("[1] %d\n",pid1);
+			waitpid(pid1,&status, 0);
+		}
+	}
 }
 
 void handle_command()
 {
 	if (parse_for_shell_commands() == 0) {
-		//start_job(myargv);
-	//	execute_command(myargv);
+		start_job();
 	}
 }
 
