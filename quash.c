@@ -11,28 +11,28 @@
 #define BMAX 100
 #define TRUE 1
 #define FALSE 0
-#define MAXJOB 20
+//#define MAXJOB 20
 #define SUSPENDED 'S'
 #define WAITING_INPUT 'W'
-#define STDIN 1
-#define STDOUT 2
+//#define STDIN 1
+//#define STDOUT 2
 
 
 #define BY_PROCESS_ID 1
 #define BY_JOB_ID 2
 #define BY_JOB_STATUS 3
 static char cmd_buffer[BMAX];
-static char* myargv[5];
+static char* myargv[15];
 static int myargc = 0;
 static char input = '\0';
 static int buff_chars = 0;
 static int pos;
-static char* cwd;
-typedef void (*sighandler_t)(int);
+//static char* cwd;
+//typedef void (*sighandler_t)(int);
 int status;
 int fdout,fdin;
 static int QUASH_TERMINAL;
-static int numActiveJobs = 0;
+static int num_active_jobs = 0;
 static char* currentDirectory;
 static pid_t QUASH_PID;
 static pid_t QUASH_PGID;
@@ -51,7 +51,7 @@ typedef struct job {
         struct job *next;
 } t_job;
 
-static t_job* jobsList = NULL;
+static t_job* jobslist = NULL;
 
 typedef enum execution_mode
 {
@@ -63,7 +63,8 @@ typedef enum redirection
 {
 	EMPTY=0,
 	READ,
-	WRITE
+	WRITE,
+	PIPE
 }redirection;
 
 void shell_display()
@@ -76,33 +77,33 @@ void signal_handler(int signo)
 	fflush(stdout);
 	shell_display();
 }
-t_job* delJob(t_job* job)
+t_job* deljob(t_job* job)
 {
         usleep(10000);
-        if (jobsList == NULL)
+        if (jobslist == NULL)
                 return NULL;
-        t_job* currentJob;
-        t_job* beforeCurrentJob;
+        t_job* currentjob;
+        t_job* beforecurrentjob;
 
-        currentJob = jobsList->next;
-        beforeCurrentJob = jobsList;
+        currentjob = jobslist->next;
+        beforecurrentjob = jobslist;
 
-        if (beforeCurrentJob->pid == job->pid) {
+        if (beforecurrentjob->pid == job->pid) {
 
-                beforeCurrentJob = beforeCurrentJob->next;
-                numActiveJobs--;
-                return currentJob;
+                beforecurrentjob = beforecurrentjob->next;
+                num_active_jobs--;
+                return currentjob;
         }
 
-        while (currentJob != NULL) {
-                if (currentJob->pid == job->pid) {
-                        numActiveJobs--;
-                        beforeCurrentJob->next = currentJob->next;
+        while (currentjob != NULL) {
+                if (currentjob->pid == job->pid) {
+                        num_active_jobs--;
+                        beforecurrentjob->next = currentjob->next;
                 }
-                beforeCurrentJob = currentJob;
-                currentJob = currentJob->next;
+                beforecurrentjob = currentjob;
+                currentjob = currentjob->next;
         }
-        return jobsList;
+        return jobslist;
 }
 
 
@@ -113,13 +114,13 @@ void waitjob(t_job* job)
                 if (job->status == SUSPENDED)
                         return;
         }
-        jobsList = delJob(job);
+        jobslist = deljob(job);
 }
 
 t_job* getjob(int searchValue, int searchParameter)
 {
         usleep(10000);
-        t_job* job = jobsList;
+        t_job* job = jobslist;
         switch (searchParameter) {
         case BY_PROCESS_ID:
                 while (job != NULL) {
@@ -203,6 +204,8 @@ int check_for_symbol(char* token)
 				return READ;
 			else if (strcmp(">", myargv[pos]) == 0)
 				return WRITE;
+			else if (strcmp("|", myargv[pos]) == 0)
+				return PIPE;
 		}
 	}
 	return 0;
@@ -218,7 +221,7 @@ void display_jobs()
                "descriptor", "status");
         printf(
                 "---------------------------------------------------------------------------\n");
-        t_job* job = jobsList;
+        t_job* job = jobslist;
         if (job == NULL) {
                 printf("| %s %62s |\n", "No Jobs.", "");
         } else {
@@ -321,23 +324,23 @@ t_job* insertjob(pid_t pid, pid_t pgid, char* name, char* descriptor,
         newJob->descriptor = strcpy(newJob->descriptor, descriptor);
         newJob->next = NULL;
 
-        if (jobsList == NULL) {
-                numActiveJobs++;
-                newJob->id = numActiveJobs;
+        if (jobslist == NULL) {
+                num_active_jobs++;
+                newJob->id = num_active_jobs;
                 return newJob;
         } else {
-                t_job *auxNode = jobsList;
+                t_job *auxNode = jobslist;
                 while (auxNode->next != NULL) {
                         auxNode = auxNode->next;
                 }
                 newJob->id = auxNode->id + 1;
                 auxNode->next = newJob;
-                numActiveJobs++;
-                return jobsList;
+                num_active_jobs++;
+                return jobslist;
         }
 }
 
-void execute_command (char *command[],mode mode)
+void execute_command (char *command[])
 {
 		close(fdin);
 		close(fdout);
@@ -348,7 +351,7 @@ void execute_command (char *command[],mode mode)
 int changeJobStatus(int pid, int status)
 {
         usleep(10000);
-        t_job *job = jobsList;
+        t_job *job = jobslist;
         if (job == NULL) {
                 return 0;
         } else {
@@ -377,26 +380,26 @@ void signalHandler_child(int p)
                 if (WIFEXITED(terminationStatus)) {
                         if (job->status == BG) {
                                 printf("\n[%d]+  Done\t   %s\n", job->id, job->name);
-                                jobsList = delJob(job);
+                                jobslist = deljob(job);
                         }
                 } else if (WIFSIGNALED(terminationStatus)) {
                         printf("\n[%d]+  KILLED\t   %s\n", job->id, job->name);
-                        jobsList = delJob(job);
+                        jobslist = deljob(job);
                 } else if (WIFSTOPPED(terminationStatus)) {
                         if (job->status == BG) {
                                 tcsetpgrp(QUASH_TERMINAL, QUASH_PGID);
                                 changeJobStatus(pid, WAITING_INPUT);
                                 printf("\n[%d]+   suspended [wants input]\t   %s\n",
-                                       numActiveJobs, job->name);
+                                       num_active_jobs, job->name);
                         } else {
                                 tcsetpgrp(QUASH_TERMINAL, job->pgid);
                                 changeJobStatus(pid, SUSPENDED);
-                                printf("\n[%d]+   stopped\t   %s\n", numActiveJobs, job->name);
+                                printf("\n[%d]+   stopped\t   %s\n", num_active_jobs, job->name);
                         }
                         return;
                 } else {
                         if (job->status == BG) {
-                                jobsList = delJob(job);
+                                jobslist = deljob(job);
                         }
                 }
                 tcsetpgrp(QUASH_TERMINAL, QUASH_PGID);
@@ -439,16 +442,38 @@ void init()
                 fflush(stdout);
 }
 
+void execute_pipe (char* command1[], char* command2[])
+{
+	int my_pipe[2];
+	pipe(my_pipe);
+	int pid;
+	pid = fork();
+	if(pid ==0) {
+		dup2(my_pipe[1],STDOUT_FILENO);
+    		close(my_pipe[0]);
+    		close(my_pipe[1]);
+		if (execvp(*command1, command1) == -1)
+                        perror("quash");
+    		exit(0);
+	}
+	else {
+		dup2(my_pipe[0],STDIN_FILENO);
+    		close(my_pipe[1]);
+    		close(my_pipe[0]);
+    		waitpid(pid,&status, 0);
+		if (execvp(*command2, command2) == -1)
+                        perror("quash");
+	}	
+}
+
 
 void start_job(char *command[], char *file)
 {
 	char* filename = NULL;
 	pid_t pid;
-	redirection redirection = 0;
 	mode mode = 0;
-	mode  = check_for_symbol("&");
-	redirection = check_for_symbol('\0');
-        /*TODO: check_for_symbol('|') and Implement pipeline*/
+	redirection redirection = 0;
+	mode = check_for_symbol("&");
 	pid = fork();
 	if (pid == 0) {
 		signal(SIGINT, SIG_DFL);
@@ -460,37 +485,47 @@ void start_job(char *command[], char *file)
 		setpgrp();
 		if (mode == FG)
 			tcsetpgrp(QUASH_TERMINAL, getpid());
-		if (mode == BG)
+		else
 			 printf("[1] %d\n",(int) getpid());
-		if (redirection == WRITE)
+
+		redirection = check_for_symbol('\0');
+		printf("redirection = %d\n",redirection);	
+		if ( (check_for_symbol('\0')) == PIPE)
+		{
+			command[pos] = '\0';
+			execute_pipe(command,&command[pos+1]);
+			exit (0);
+
+		}
+		else if ( (check_for_symbol('\0')) == WRITE)
 		{
 			filename = command[pos + 1];
 			command[pos] = '\0';
 			printf("%s\n",filename); 
 			fdout = open(filename, O_CREAT | O_WRONLY | O_TRUNC, 0666);
 			dup2(fdout, STDOUT_FILENO);
-          		execute_command(command, mode);
+          		execute_command(command);
           		close(fdout);
           		exit(0);
         	}
 
 		/*TODO: READ*/
-		else if(redirection == READ) {
+		else if( (check_for_symbol('\0')) == READ) {
 		}
 			
 		else {
-          		execute_command(command, mode);
+          		execute_command(command);
 			exit(0);
 		}
 	}
 	else {
 		setpgid(pid, pid);
-		jobsList = insertjob(pid, pid, *(command), file, (int)mode);
+		jobslist = insertjob(pid, pid, *(command), file, (int)mode);
 		t_job *job = getjob(pid, BY_PROCESS_ID);
 		if (mode == FG) {
 			putJobForeground(job, FALSE);
 		}
-		if (mode == BG)
+		else
 			putJobBackground(job, FALSE);
 	}
 }
