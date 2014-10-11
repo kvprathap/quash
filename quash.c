@@ -212,8 +212,7 @@ void display_jobs()
         printf("\nActive jobs:\n");
         printf(
                 "---------------------------------------------------------------------------\n");
-        printf("| %7s  | %30s | %5s | %10s | %6s |\n", "job no.", "name", "pid",
-               "descriptor", "status");
+        printf("| %7s  | %7s | %30s |\n", "job no.", "pid", "name");
         printf(
                 "---------------------------------------------------------------------------\n");
         t_job* job = jobslist;
@@ -221,8 +220,8 @@ void display_jobs()
                 printf("| %s %62s |\n", "No Jobs.", "");
         } else {
                 while (job != NULL) {
-                        printf("|  %7d | %30s | %5d | %10s | %6c |\n", job->id, job->name,
-                               job->pid, job->descriptor, job->status);
+                        printf("|  %7d | %7d | %30s |\n", job->id, job->pid,
+                               job->name);
                         job = job->next;
                 }
         }
