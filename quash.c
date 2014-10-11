@@ -14,6 +14,7 @@
 #define SUSPENDED 'S'
 #define WAITING_INPUT 'W'
 
+#define PATH "set path="
 
 #define BY_PROCESS_ID 1
 #define BY_JOB_ID 2
@@ -24,6 +25,7 @@ static int myargc = 0;
 static char input = '\0';
 static int buff_chars = 0;
 static int pos;
+char *input_command;
 int status;
 int fdout,fdin;
 static int QUASH_TERMINAL;
@@ -269,6 +271,13 @@ int parse_for_shell_commands()
 		killjob(jobid);
                 return 1;
         }
+	
+	if (strcmp("set", myargv[0]) == 0) { // Killing a job
+
+                int temp = set();
+                
+                return 1;
+        }
 
 	/*TODO:Set*/
     	return 0;
@@ -276,6 +285,53 @@ int parse_for_shell_commands()
 
 	
 } 
+
+
+
+int set(){
+int i=0;int temp;
+int length=0;
+char *path = myargv[1];
+printf("p = %s",path);
+printf("Length of p = %d",strlen(path));
+printf("Inside set fucntion");
+input_command = (char *)malloc(sizeof(char)*100);
+for(i=0;i<100;i++){
+input_command[i] = '\0';
+i++;
+}
+length = strlen(myargv[1]);
+printf("Length of myargv[1] is %d",length);
+
+read_command_line();
+printf("after read command");
+scanf("%d",&temp);
+
+if((strncmp(path,"HOME=",5))==0){
+	printf("Inside if");
+	scanf("%d",&temp);
+printf("%c",&path[5]);
+scanf("%d",&temp);
+
+	strncpy(input_command,path+5,(length-5));
+	printf("Now input command is : %s",input_command);
+	scanf("%d",&temp);
+	if((setenv("HOME",input_command,1))==-1){
+		printf("could not set the given path to HOME");
+	}
+}
+if((strncmp(myargv[1],"PATH=",5))==0){
+//	strncpy(input_command,myargv[1]+5,length-5);
+strncpy(input_command,path+5,(length-5));
+	if((setenv("PATH",input_command[1],1))==-1){
+		printf("could not set the given path to PATH");
+	}
+}
+
+return 1;
+}
+
+
 
 void putJobForeground(t_job* job, int continueJob)
 {
