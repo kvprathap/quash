@@ -11,11 +11,8 @@
 #define BMAX 100
 #define TRUE 1
 #define FALSE 0
-//#define MAXJOB 20
 #define SUSPENDED 'S'
 #define WAITING_INPUT 'W'
-//#define STDIN 1
-//#define STDOUT 2
 
 
 #define BY_PROCESS_ID 1
@@ -27,8 +24,6 @@ static int myargc = 0;
 static char input = '\0';
 static int buff_chars = 0;
 static int pos;
-//static char* cwd;
-//typedef void (*sighandler_t)(int);
 int status;
 int fdout,fdin;
 static int QUASH_TERMINAL;
@@ -343,7 +338,6 @@ t_job* insertjob(pid_t pid, pid_t pgid, char* name, char* descriptor,
 void execute_command (char *command[])
 {
 		close(fdin);
-		close(fdout);
 		if (execvp(*command, command) == -1)
                 	perror("quash");
 }
@@ -472,9 +466,9 @@ void start_job(char *command[], char *file)
 	char* filename = NULL;
 	pid_t pid;
 	mode mode = 0;
-	redirection redirection = 0;
 	mode = check_for_symbol("&");
 	pid = fork();
+	char* s;
 	if (pid == 0) {
 		signal(SIGINT, SIG_DFL);
                 signal(SIGQUIT, SIG_DFL);
@@ -488,8 +482,6 @@ void start_job(char *command[], char *file)
 		else
 			 printf("[1] %d\n",(int) getpid());
 
-		redirection = check_for_symbol('\0');
-		printf("redirection = %d\n",redirection);	
 		if ( (check_for_symbol('\0')) == PIPE)
 		{
 			command[pos] = '\0';
@@ -501,7 +493,6 @@ void start_job(char *command[], char *file)
 		{
 			filename = command[pos + 1];
 			command[pos] = '\0';
-			printf("%s\n",filename); 
 			fdout = open(filename, O_CREAT | O_WRONLY | O_TRUNC, 0666);
 			dup2(fdout, STDOUT_FILENO);
           		execute_command(command);
@@ -511,6 +502,36 @@ void start_job(char *command[], char *file)
 
 		/*TODO: READ*/
 		else if( (check_for_symbol('\0')) == READ) {
+			FILE* fp;
+			char* argsv[10];
+			char *input;
+			char* s = NULL;
+			filename = command[pos + 1];
+                        command[pos] = '\0';
+			if(strcmp(myargv[0],"quash") == 0){
+				fp = fopen(filename, "r");
+				if(fp == NULL)
+					printf("error\n");
+				while (fgets(input, 1024, fp) != NULL) {
+				 	s = strchr(input, '\n');
+					if (s != NULL) {
+						input[strlen(input)-1] = '\0';
+					}
+				argsv[0] = input;
+                        	execute_command(argsv);
+				}
+				fclose(fp);
+			}
+			else {
+
+                        	fdin = open(filename, O_RDONLY);
+				dup2(fdin, STDIN_FILENO);
+                        	execute_command(command);
+                        	close(fdin);
+          			exit(0);
+			}
+                        exit(0);
+
 		}
 			
 		else {
