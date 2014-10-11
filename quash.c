@@ -20,11 +20,11 @@
 #define BY_JOB_ID 2
 #define BY_JOB_STATUS 3
 static char cmd_buffer[BMAX];
-static char* myargv[15];
+static char* myargv[15];	//tokenised commad buffer
 static int myargc = 0;
 static char input = '\0';
 static int buff_chars = 0;
-static int pos;
+static int pos;			//position of < > | &
 char *input_command;
 int status;
 int fdout,fdin;
@@ -36,7 +36,7 @@ static pid_t QUASH_PGID;
 static int QUASH_TERMINAL, QUASH_IS_INTERACTIVE;
 static struct termios QUASH_TMODES;
 
-
+/* Job information */
 
 typedef struct job {
         int id;
@@ -49,13 +49,14 @@ typedef struct job {
 } t_job;
 
 static t_job* jobslist = NULL;
-
+/*Declaration  for ForeGround and BackGround*/
 typedef enum execution_mode
 {
 	FG=0,
 	BG
 }mode;
 
+/*Declaration for < > |*/
 typedef enum redirection
 {
 	EMPTY=0,
@@ -69,11 +70,7 @@ void shell_display()
 	printf("\nquash -> ");
 }
 
-void signal_handler(int signo)
-{
-	fflush(stdout);
-	shell_display();
-}
+/* Delete job from the queue */
 t_job* deljob(t_job* job)
 {
         usleep(10000);
@@ -167,7 +164,7 @@ void init_command()
         buff_chars = 0;
 }
 
-
+/* Tokenise the command buffer */
 
 void read_command_line()
 {
@@ -187,6 +184,7 @@ void read_command_line()
 	}
 }
 
+/* Check for BG FG and redirection symbols and updates its token position*/
 int check_for_symbol(char* token)
 {
 	pos = 0;
@@ -245,7 +243,7 @@ void change_directory()
 }
 
 
-/* implement exit,cd,jobs,kill*/
+/* Executes builtin shell commands like exit,cd,jobs,kill,set*/
 int parse_for_shell_commands()
 {
 	if (strcmp("exit", myargv[0]) == 0) { // Implementing exit command
@@ -285,7 +283,7 @@ int parse_for_shell_commands()
 
 	
 } 
-
+/*Sets the PATH and HOME*/
 int set(){
 int i=0;int temp;
 int length=0;
@@ -318,11 +316,11 @@ return 1;
 
 
 
-void putJobForeground(t_job* job, int continueJob)
+void putjobforeground(t_job* job, int continuejob)
 {
         job->status = FG;
         tcsetpgrp(QUASH_TERMINAL, job->pgid);
-        if (continueJob) {
+        if (continuejob) {
                 if (kill(-job->pgid, SIGCONT) < 0)
                         perror("kill (SIGCONT)");
         }
@@ -331,14 +329,14 @@ void putJobForeground(t_job* job, int continueJob)
         tcsetpgrp(QUASH_TERMINAL, QUASH_PGID);
 }
 
-void putJobBackground(t_job* job, int continueJob)
+void putjobbackground(t_job* job, int continuejob)
 {
         if (job == NULL)
                 return;
 
-        if (continueJob && job->status != WAITING_INPUT)
+        if (continuejob && job->status != WAITING_INPUT)
                 job->status = WAITING_INPUT;
-        if (continueJob)
+        if (continuejob)
                 if (kill(-job->pgid, SIGCONT) < 0)
                         perror("kill (SIGCONT)");
 
@@ -349,33 +347,35 @@ t_job* insertjob(pid_t pid, pid_t pgid, char* name, char* descriptor,
                  int status)
 {
         usleep(10000);
-        t_job *newJob = malloc(sizeof(t_job));
+        t_job *newjob = malloc(sizeof(t_job));
 
-        newJob->name = (char*) malloc(sizeof(name));
-        newJob->name = strcpy(newJob->name, name);
-        newJob->pid = pid;
-        newJob->pgid = pgid;
-        newJob->status = status;
-        newJob->descriptor = (char*) malloc(sizeof(descriptor));
-        newJob->descriptor = strcpy(newJob->descriptor, descriptor);
-        newJob->next = NULL;
+        newjob->name = (char*) malloc(sizeof(name));
+        newjob->name = strcpy(newjob->name, name);
+        newjob->pid = pid;
+        newjob->pgid = pgid;
+        newjob->status = status;
+        newjob->descriptor = (char*) malloc(sizeof(descriptor));
+        newjob->descriptor = strcpy(newjob->descriptor, descriptor);
+        newjob->next = NULL;
 
         if (jobslist == NULL) {
                 num_active_jobs++;
-                newJob->id = num_active_jobs;
-                return newJob;
+                newjob->id = num_active_jobs;
+                return newjob;
         } else {
                 t_job *auxNode = jobslist;
                 while (auxNode->next != NULL) {
                         auxNode = auxNode->next;
                 }
-                newJob->id = auxNode->id + 1;
-                auxNode->next = newJob;
+                newjob->id = auxNode->id + 1;
+                auxNode->next = newjob;
                 num_active_jobs++;
                 return jobslist;
         }
 }
-
+/* Search for executables in the directories specified by PATH 
+ * environment variablei and execute them
+*/
 void execute_command (char *command[])
 {
 		close(fdin);
@@ -383,7 +383,7 @@ void execute_command (char *command[])
                 	perror("quash");
 }
 
-int changeJobStatus(int pid, int status)
+int changejobStatus(int pid, int status)
 {
         usleep(10000);
         t_job *job = jobslist;
@@ -402,7 +402,7 @@ int changeJobStatus(int pid, int status)
                 return FALSE;
         }
 }
-
+/*Signal handler of chils */
 void signalHandler_child(int p)
 {
         pid_t pid;
@@ -423,12 +423,12 @@ void signalHandler_child(int p)
                 } else if (WIFSTOPPED(terminationStatus)) {
                         if (job->status == BG) {
                                 tcsetpgrp(QUASH_TERMINAL, QUASH_PGID);
-                                changeJobStatus(pid, WAITING_INPUT);
+                                changejobStatus(pid, WAITING_INPUT);
                                 printf("\n[%d]+   suspended [wants input]\t   %s\n",
                                        num_active_jobs, job->name);
                         } else {
                                 tcsetpgrp(QUASH_TERMINAL, job->pgid);
-                                changeJobStatus(pid, SUSPENDED);
+                                changejobStatus(pid, SUSPENDED);
                                 printf("\n[%d]+   stopped\t   %s\n", num_active_jobs, job->name);
                         }
                         return;
@@ -441,7 +441,7 @@ void signalHandler_child(int p)
         }
 }
 
-
+/* Initialization routine for Quash Shell */
 void init()
 {
         QUASH_PID = getpid();
@@ -477,6 +477,7 @@ void init()
                 fflush(stdout);
 }
 
+/* Execute one level pipe */
 void execute_pipe (char* command1[], char* command2[])
 {
 	int my_pipe[2];
@@ -501,12 +502,15 @@ void execute_pipe (char* command1[], char* command2[])
 	}	
 }
 
-
+/*If the command is not builtin shell command 
+**this function is called to process other commands
+*/ 
 void start_job(char *command[], char *file)
 {
 	char* filename = NULL;
 	pid_t pid;
 	mode mode = 0;
+	/*FG/BG*/
 	mode = check_for_symbol("&");
 	pid = fork();
 	char* s;
@@ -517,12 +521,14 @@ void start_job(char *command[], char *file)
                 signal(SIGCHLD, &signalHandler_child);
                 signal(SIGTTIN, SIG_DFL);
                 usleep(20000);
+		/*Setting terminal FG/BG jobs*/
 		setpgrp();
 		if (mode == FG)
 			tcsetpgrp(QUASH_TERMINAL, getpid());
 		else
 			 printf("[1] %d\n",(int) getpid());
 
+		/*PIPE*/
 		if ( (check_for_symbol('\0')) == PIPE)
 		{
 			command[pos] = '\0';
@@ -530,6 +536,7 @@ void start_job(char *command[], char *file)
 			exit (0);
 
 		}
+		/*WRITE*/
 		else if ( (check_for_symbol('\0')) == WRITE)
 		{
 			filename = command[pos + 1];
@@ -541,7 +548,7 @@ void start_job(char *command[], char *file)
           		exit(0);
         	}
 
-		/*TODO: READ*/
+		/*READ*/
 		else if( (check_for_symbol('\0')) == READ) {
 			FILE* fp;
 			char* argsv[10];
@@ -549,6 +556,7 @@ void start_job(char *command[], char *file)
 			char* s = NULL;
 			filename = command[pos + 1];
                         command[pos] = '\0';
+			/*Read the commands from file and executes*/
 			if(strcmp(myargv[0],"quash") == 0){
 				fp = fopen(filename, "r");
 				if(fp == NULL)
@@ -563,6 +571,7 @@ void start_job(char *command[], char *file)
 				}
 				fclose(fp);
 			}
+			/*else normal read*/
 			else {
 
                         	fdin = open(filename, O_RDONLY);
@@ -581,14 +590,15 @@ void start_job(char *command[], char *file)
 		}
 	}
 	else {
+		/*Parent to put the job in FG/BG*/
 		setpgid(pid, pid);
 		jobslist = insertjob(pid, pid, *(command), file, (int)mode);
 		t_job *job = getjob(pid, BY_PROCESS_ID);
 		if (mode == FG) {
-			putJobForeground(job, FALSE);
+			putjobforeground(job, FALSE);
 		}
 		else
-			putJobBackground(job, FALSE);
+			putjobbackground(job, FALSE);
 	}
 }
 
